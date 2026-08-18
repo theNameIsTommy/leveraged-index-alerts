@@ -1,0 +1,40 @@
+{
+  "assets": [
+    {
+      "id": "gold",
+      "name": "Gold",
+      "provider": "stooq",
+      "symbol": "xauusd",
+      "sma_window": 200,
+      "upper_band_pct": 2.0,
+      "lower_band_pct": -2.0,
+      "quote_label": "USD",
+      "signal_description": "Unleveraged XAU/USD daily close",
+      "execution_hint": "2x gold exposure, for example WisdomTree Gold 2x Daily Leveraged (LBUL)"
+    },
+    {
+      "id": "sp500",
+      "name": "S&P 500",
+      "provider": "yahoo",
+      "symbol": "^GSPC",
+      "sma_window": 200,
+      "upper_band_pct": 1.0,
+      "lower_band_pct": -1.0,
+      "quote_label": "points",
+      "signal_description": "Unleveraged S&P 500 price index daily close",
+      "execution_hint": "2x S&P 500 exposure chosen by the investor"
+    },
+    {
+      "id": "world",
+      "name": "MSCI World proxy",
+      "provider": "yahoo",
+      "symbol": "SWDA.L",
+      "sma_window": 200,
+      "upper_band_pct": 1.0,
+      "lower_band_pct": -1.0,
+      "quote_label": "USD",
+      "signal_description": "iShares Core MSCI World UCITS ETF (SWDA) as a practical unleveraged MSCI World proxy",
+      "execution_hint": "2x MSCI World exposure, for example Amundi MSCI World (2x) Leveraged UCITS ETF Acc (LVWC)"
+    }
+  ]
+}
