@@ -36,8 +36,22 @@ def asset_state(state: dict[str, Any], asset_id: str) -> dict[str, Any]:
     return value
 
 
-def should_notify(fingerprint: str | None, per_asset_state: dict[str, Any]) -> bool:
-    return bool(fingerprint) and fingerprint != per_asset_state.get("last_alert_fingerprint")
+def should_notify(
+    fingerprint: str | None,
+    per_asset_state: dict[str, Any],
+    *,
+    event_date: date | None = None,
+) -> bool:
+    if not fingerprint or fingerprint == per_asset_state.get("last_alert_fingerprint"):
+        return False
+    raw_previous_date = per_asset_state.get("last_alert_event_date")
+    if event_date is None or not raw_previous_date:
+        return True
+    try:
+        previous_date = date.fromisoformat(str(raw_previous_date))
+    except ValueError as exc:
+        raise StateError(f"Invalid last_alert_event_date: {raw_previous_date!r}") from exc
+    return event_date > previous_date
 
 
 def heartbeat_due(state: dict[str, Any], today: date, *, every_days: int = 28) -> bool:

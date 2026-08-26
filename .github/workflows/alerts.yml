@@ -73,7 +73,7 @@ jobs:
         run: leveraged-alerts run --notify
 
       - name: Commit alert state and heartbeat
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'live')
+        if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'live')) }}
         run: |
           if git diff --quiet -- state/runtime.json; then
             echo "No runtime state change to commit."

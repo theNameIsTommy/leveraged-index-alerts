@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 from datetime import date, datetime
+from math import isfinite
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
@@ -17,6 +18,13 @@ STOOQ_DAILY_URL = "https://stooq.com/q/d/l/"
 
 class MarketDataError(RuntimeError):
     pass
+
+
+def _sort_unique_bars(bars: list[PriceBar], source: str) -> list[PriceBar]:
+    dates = [bar.date for bar in bars]
+    if len(dates) != len(set(dates)):
+        raise MarketDataError(f"{source} response contains duplicate daily dates")
+    return sorted(bars, key=lambda bar: bar.date)
 
 
 def _session() -> requests.Session:
@@ -53,15 +61,13 @@ def parse_stooq_csv(text: str) -> list[PriceBar]:
             close = float(raw_close)
         except ValueError:
             continue
-        if close <= 0:
+        if not isfinite(close) or close <= 0:
             continue
         bars.append(PriceBar(date=bar_date, close=close))
 
-    deduped = {bar.date: bar for bar in bars}
-    result = sorted(deduped.values(), key=lambda bar: bar.date)
-    if not result:
+    if not bars:
         raise MarketDataError("No valid daily observations were found in the Stooq response")
-    return result
+    return _sort_unique_bars(bars, "Stooq")
 
 
 def fetch_stooq_daily(symbol: str, *, timeout: int = 30) -> list[PriceBar]:
@@ -87,6 +93,9 @@ def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
         error = payload.get("chart", {}).get("error") if isinstance(payload, dict) else None
         raise MarketDataError(f"Yahoo chart response is malformed: {error or exc}") from exc
 
+    if not isinstance(timestamps, list) or not isinstance(closes, list) or len(timestamps) != len(closes):
+        raise MarketDataError("Yahoo chart response is malformed: timestamp and close lengths differ")
+
     try:
         timezone = ZoneInfo(timezone_name)
     except Exception:
@@ -101,14 +110,12 @@ def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
             bar_date = datetime.fromtimestamp(int(timestamp), tz=timezone).date()
         except (TypeError, ValueError, OSError):
             continue
-        if close > 0:
+        if isfinite(close) and close > 0:
             bars.append(PriceBar(date=bar_date, close=close))
 
-    deduped = {bar.date: bar for bar in bars}
-    result_bars = sorted(deduped.values(), key=lambda bar: bar.date)
-    if not result_bars:
+    if not bars:
         raise MarketDataError("No valid daily observations were found in the Yahoo response")
-    return result_bars
+    return _sort_unique_bars(bars, "Yahoo")
 
 
 def fetch_yahoo_daily(symbol: str, *, timeout: int = 30) -> list[PriceBar]:

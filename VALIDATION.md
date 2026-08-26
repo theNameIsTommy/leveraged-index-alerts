@@ -13,7 +13,7 @@ python -m pytest -q
 Result:
 
 ```text
-30 passed
+36 passed
 ```
 
 Also validate syntax with:
@@ -33,9 +33,12 @@ Automated tests cover:
 - Independent per-asset state.
 - Duplicate alert suppression per asset.
 - New-asset and changed-strategy bootstrap behavior.
+- Neutral bootstrap followed by the first real transition.
+- Same-day/intraday observation exclusion.
 - Short history rejection.
 - Stale-data rejection.
 - Future-date rejection.
+- Monotonic transition dates after provider history revisions.
 - Stooq CSV parsing.
 - Yahoo chart parsing.
 - Asset configuration parsing and validation.

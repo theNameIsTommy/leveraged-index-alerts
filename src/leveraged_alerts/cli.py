@@ -8,7 +8,7 @@ from .config import AssetSettings, Settings
 from .data import fetch_daily
 from .models import EventType, Snapshot
 from .state import asset_state, heartbeat_due, load_state, save_state, should_notify
-from .strategy import build_snapshots, latest_transition, validate_freshness
+from .strategy import StrategyError, build_snapshots, latest_transition, validate_freshness
 from .telegram import get_updates, send_message
 
 
@@ -25,14 +25,21 @@ def _strategy_signature(asset: AssetSettings) -> str:
 
 def _load_market(settings: Settings, asset: AssetSettings) -> list[Snapshot]:
     bars = fetch_daily(asset.provider, asset.symbol)
+    today = _today(settings.timezone)
+    future_dates = [bar.date for bar in bars if bar.date > today]
+    if future_dates:
+        raise StrategyError(
+            f"Latest market date {max(future_dates)} is in the future relative to {today}"
+        )
+    completed_bars = [bar for bar in bars if bar.date < today]
     snapshots = build_snapshots(
-        bars,
+        completed_bars,
         window=asset.sma_window,
         upper=asset.upper_band_pct,
         lower=asset.lower_band_pct,
     )
     latest = snapshots[-1]
-    validate_freshness(latest.date, _today(settings.timezone), settings.max_data_age_days)
+    validate_freshness(latest.date, today, settings.max_data_age_days)
     return snapshots
 
 
@@ -108,8 +115,18 @@ def command_run(settings: Settings, *, notify: bool) -> int:
             transition = latest_transition(snapshots)
             print(_status_text(asset, current))
 
-            if transition is None:
-                print("No historical band transition is available yet.\n")
+            if not notify:
+                if transition is None:
+                    print("No historical band transition is available yet.\n")
+                    continue
+                fingerprint = transition.fingerprint(
+                    asset_id=asset.id,
+                    symbol=asset.symbol,
+                    window=asset.sma_window,
+                    upper=asset.upper_band_pct,
+                    lower=asset.lower_band_pct,
+                )
+                print(f"Dry run. Latest transition fingerprint: {fingerprint}\n")
                 continue
 
             fingerprint = transition.fingerprint(
@@ -118,22 +135,22 @@ def command_run(settings: Settings, *, notify: bool) -> int:
                 window=asset.sma_window,
                 upper=asset.upper_band_pct,
                 lower=asset.lower_band_pct,
-            )
+            ) if transition else None
             per_asset = asset_state(state, asset.id)
-
-            if not notify:
-                print(f"Dry run. Latest transition fingerprint: {fingerprint}\n")
-                continue
-
             signature = _strategy_signature(asset)
-            if per_asset.get("strategy_signature") != signature or not per_asset.get("last_alert_fingerprint"):
+            if (
+                per_asset.get("strategy_signature") != signature
+                or "last_alert_fingerprint" not in per_asset
+            ):
                 per_asset["strategy_signature"] = signature
                 per_asset["last_alert_fingerprint"] = fingerprint
-                per_asset["last_alert_event_date"] = transition.date.isoformat()
+                per_asset["last_alert_event_date"] = transition.date.isoformat() if transition else None
                 per_asset["bootstrapped"] = True
                 changed = True
                 print(f"{asset.name}: bootstrapped without sending a historical alert.\n")
-            elif should_notify(fingerprint, per_asset):
+            elif transition is None:
+                print("No historical band transition is available yet.\n")
+            elif should_notify(fingerprint, per_asset, event_date=transition.date):
                 send_message(_alert_text(asset, transition, current))
                 per_asset["last_alert_fingerprint"] = fingerprint
                 per_asset["last_alert_event_date"] = transition.date.isoformat()

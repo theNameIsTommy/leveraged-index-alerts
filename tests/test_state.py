@@ -26,6 +26,22 @@ def test_empty_fingerprint_never_notifies():
     assert not should_notify(None, {})
 
 
+def test_older_reconstructed_transition_does_not_notify():
+    state = {
+        "last_alert_fingerprint": "newer-event",
+        "last_alert_event_date": "2026-08-14",
+    }
+    assert not should_notify("different-older-event", state, event_date=date(2026, 8, 13))
+
+
+def test_later_reconstructed_transition_notifies():
+    state = {
+        "last_alert_fingerprint": "older-event",
+        "last_alert_event_date": "2026-08-14",
+    }
+    assert should_notify("different-newer-event", state, event_date=date(2026, 8, 15))
+
+
 def test_heartbeat_due_when_missing():
     assert heartbeat_due({}, date(2026, 8, 17), every_days=28)
 

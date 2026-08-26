@@ -21,6 +21,12 @@ def test_parse_wrong_columns_fails():
         parse_stooq_csv("foo,bar\n1,2\n")
 
 
+def test_parse_stooq_rejects_duplicate_dates():
+    text = "Date,Close\n2026-08-14,100\n2026-08-14,101\n"
+    with pytest.raises(MarketDataError, match="duplicate"):
+        parse_stooq_csv(text)
+
+
 def test_parse_yahoo_chart():
     payload = {
         "chart": {
@@ -40,3 +46,18 @@ def test_parse_yahoo_chart():
 def test_parse_malformed_yahoo_fails():
     with pytest.raises(MarketDataError, match="malformed"):
         parse_yahoo_chart({"chart": {"result": None, "error": {"description": "bad"}}})
+
+
+def test_parse_yahoo_rejects_duplicate_dates():
+    payload = {
+        "chart": {
+            "result": [{
+                "meta": {"exchangeTimezoneName": "UTC"},
+                "timestamp": [1786665600, 1786665600],
+                "indicators": {"quote": [{"close": [100.0, 101.0]}]},
+            }],
+            "error": None,
+        }
+    }
+    with pytest.raises(MarketDataError, match="duplicate"):
+        parse_yahoo_chart(payload)

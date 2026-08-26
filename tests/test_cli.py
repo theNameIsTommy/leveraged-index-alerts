@@ -3,7 +3,7 @@ from pathlib import Path
 
 from leveraged_alerts import cli
 from leveraged_alerts.config import AssetSettings, Settings
-from leveraged_alerts.models import EventType, Regime, Snapshot
+from leveraged_alerts.models import EventType, PriceBar, Regime, Snapshot
 from leveraged_alerts.state import load_state, save_state
 
 
@@ -30,6 +30,17 @@ def buy_snapshot(day=date(2026, 8, 14), distance=1.2):
         distance_pct=distance,
         regime=Regime.BULL,
         event=EventType.BUY,
+    )
+
+
+def neutral_snapshot(day=date(2026, 8, 14)):
+    return Snapshot(
+        date=day,
+        close=100.0,
+        sma=100.0,
+        distance_pct=0.0,
+        regime=Regime.NEUTRAL,
+        event=None,
     )
 
 
@@ -107,3 +118,41 @@ def test_strategy_change_for_one_asset_bootstraps_that_asset(monkeypatch, tmp_pa
     assert sent == []
     state = load_state(cfg.state_file)
     assert state["assets"]["sp500"]["strategy_signature"].endswith("u2:l-2")
+
+
+def test_neutral_bootstrap_allows_first_later_transition_to_notify(monkeypatch, tmp_path):
+    cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), state_file=tmp_path / "state.json")
+    sent = []
+    snapshots = [neutral_snapshot()]
+    monkeypatch.setattr(cli, "_load_market", lambda _settings, _asset: snapshots)
+    monkeypatch.setattr(cli, "send_message", lambda text: sent.append(text))
+    monkeypatch.setattr(cli, "_today", lambda _timezone: date(2026, 8, 17))
+
+    assert cli.command_run(cfg, notify=True) == 0
+    assert sent == []
+    state = load_state(cfg.state_file)
+    assert state["assets"]["sp500"]["last_alert_fingerprint"] is None
+
+    snapshots[:] = [buy_snapshot(day=date(2026, 8, 18))]
+    assert cli.command_run(cfg, notify=True) == 0
+    assert len(sent) == 1
+    assert "SP500 SMA ALERT" in sent[0]
+
+
+def test_load_market_excludes_same_day_bar(monkeypatch):
+    cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), max_data_age_days=5)
+    current_asset = AssetSettings(
+        **{**cfg.assets[0].__dict__, "sma_window": 2}
+    )
+    bars = [
+        PriceBar(date(2026, 8, 18), 100.0),
+        PriceBar(date(2026, 8, 19), 100.0),
+        PriceBar(date(2026, 8, 20), 200.0),
+    ]
+    monkeypatch.setattr(cli, "fetch_daily", lambda _provider, _symbol: bars)
+    monkeypatch.setattr(cli, "_today", lambda _timezone: date(2026, 8, 20))
+
+    snapshots = cli._load_market(cfg, current_asset)
+
+    assert snapshots[-1].date == date(2026, 8, 19)
+    assert snapshots[-1].regime == Regime.NEUTRAL
