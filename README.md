@@ -6,7 +6,7 @@ Default assets:
 
 | Asset | Signal series | SMA | Buy band | Sell band | Example leveraged execution |
 |---|---|---:|---:|---:|---|
-| Gold | Stooq XAU/USD | 200 days | +2% | -2% | WisdomTree Gold 2x Daily Leveraged, LBUL |
+| Gold | Yahoo `XAUUSD=X` | 200 days | +2% | -2% | WisdomTree Gold 2x Daily Leveraged, LBUL |
 | S&P 500 | Yahoo `^GSPC` | 200 days | +1% | -1% | Your preferred 2x S&P 500 product |
 | MSCI World proxy | Yahoo `SWDA.L` | 200 days | +1% | -1% | Amundi MSCI World (2x) Leveraged UCITS ETF, LVWC |
 
@@ -347,7 +347,7 @@ New regime: BEAR
 
 The repo deliberately does not silently fall back from one signal series to another.
 
-If Stooq fails for gold, gold fails for that run.
+If Yahoo fails for gold, gold fails for that run.
 
 If Yahoo fails for S&P 500 or World, the affected asset fails for that run. The other assets are still evaluated, and the overall command exits non-zero so GitHub visibly marks the run as problematic.
 

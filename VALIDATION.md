@@ -53,7 +53,10 @@ This is why the GitHub setup sequence begins with a manual `status` workflow. Th
 
 ## Data-series notes
 
-- Gold uses `xauusd` from Stooq by default.
+- Gold uses Yahoo `XAUUSD=X` as the practical XAU/USD signal. Stooq `xauusd`
+  was deliberately retired as the active source on 2026-08-26 after its daily
+  endpoint returned a JavaScript verification page instead of CSV; it remains
+  supported by the adapter for an explicitly configured future use.
 - S&P 500 uses Yahoo `^GSPC` as the unleveraged price-index signal.
 - World uses Yahoo `SWDA.L` as a practical proxy for MSCI World. SWDA's documented benchmark is MSCI World Index (Net), but an ETF proxy can differ slightly from the exact index because of fund fees, tracking difference and market pricing.
 
