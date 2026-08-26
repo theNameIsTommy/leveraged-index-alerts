@@ -16,6 +16,7 @@ on:
         options:
           - status
           - test-telegram
+          - summary-telegram
           - live
 
 permissions:
@@ -64,6 +65,13 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: leveraged-alerts test-telegram
+
+      - name: Manual market summary
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'summary-telegram'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: leveraged-alerts summary-telegram
 
       - name: Manual live evaluation
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'live'

@@ -177,6 +177,10 @@ gold-sma-alert status
 
 It now prints all configured assets, not only gold.
 
+To send one on-demand Telegram summary with the latest completed daily prices,
+SMA distances, and distance from each buy/sell band, run the workflow manually
+with mode `summary-telegram`. This does not change alert state or send a trade alert.
+
 ## 2. Set this up with Codex
 
 From the repository root:

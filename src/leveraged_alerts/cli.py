@@ -84,6 +84,21 @@ def _alert_text(asset: AssetSettings, event_snapshot: Snapshot, current: Snapsho
     )
 
 
+def _summary_text(asset: AssetSettings, snapshot: Snapshot) -> str:
+    buy_gap = snapshot.distance_pct - asset.upper_band_pct
+    sell_gap = snapshot.distance_pct - asset.lower_band_pct
+    return (
+        f"{asset.name} ({snapshot.date.isoformat()})\n"
+        f"Close: {snapshot.close:,.2f} {asset.quote_label} | SMA{asset.sma_window}: "
+        f"{snapshot.sma:,.2f} {asset.quote_label}\n"
+        f"SMA distance: {snapshot.distance_pct:+.2f}% | regime: {snapshot.regime.value}\n"
+        f"BULL band {asset.upper_band_pct:+.2f}%: {abs(buy_gap):.2f} pp "
+        f"{'above' if buy_gap >= 0 else 'below'}\n"
+        f"BEAR band {asset.lower_band_pct:+.2f}%: {abs(sell_gap):.2f} pp "
+        f"{'above' if sell_gap >= 0 else 'below'}"
+    )
+
+
 def command_status(settings: Settings) -> int:
     errors = 0
     for index, asset in enumerate(settings.assets):
@@ -100,6 +115,22 @@ def command_status(settings: Settings) -> int:
         if transition:
             print(f"\nMost recent transition: {transition.event.value} on {transition.date.isoformat()}")
     return 1 if errors else 0
+
+
+def command_summary_telegram(settings: Settings) -> int:
+    summaries: list[str] = []
+    errors: list[str] = []
+    for asset in settings.assets:
+        try:
+            summaries.append(_summary_text(asset, _load_market(settings, asset)[-1]))
+        except Exception as exc:
+            errors.append(f"{asset.name}: {exc}")
+    if errors:
+        print("Summary not sent; market data failed:\n" + "\n".join(errors))
+        return 1
+    send_message("LATEST COMPLETED DAILY PRICES\n\n" + "\n\n".join(summaries))
+    print("Telegram market summary sent.")
+    return 0
 
 
 def command_run(settings: Settings, *, notify: bool) -> int:
@@ -210,6 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="Evaluate all configured assets and optionally send new transition alerts")
     run.add_argument("--notify", action="store_true", help="Actually send Telegram and update runtime state")
     sub.add_parser("test-telegram", help="Send a Telegram test message with the configured assets")
+    sub.add_parser("summary-telegram", help="Send latest completed daily prices and band distances")
     sub.add_parser("chat-id", help="Show Telegram chat IDs from recent bot updates")
     return parser
 
@@ -225,6 +257,8 @@ def main() -> int:
         return command_run(settings, notify=args.notify)
     if args.command == "test-telegram":
         return command_test_telegram(settings)
+    if args.command == "summary-telegram":
+        return command_summary_telegram(settings)
     if args.command == "chat-id":
         return command_chat_id()
     parser.error(f"Unknown command: {args.command}")

@@ -139,6 +139,20 @@ def test_neutral_bootstrap_allows_first_later_transition_to_notify(monkeypatch, 
     assert "SP500 SMA ALERT" in sent[0]
 
 
+def test_summary_telegram_reports_latest_prices_and_band_distances(monkeypatch, tmp_path):
+    cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), state_file=tmp_path / "state.json")
+    sent = []
+    monkeypatch.setattr(cli, "_load_market", lambda _settings, _asset: [buy_snapshot(distance=1.2)])
+    monkeypatch.setattr(cli, "send_message", lambda text: sent.append(text))
+
+    assert cli.command_summary_telegram(cfg) == 0
+    assert len(sent) == 1
+    assert "LATEST COMPLETED DAILY PRICES" in sent[0]
+    assert "SMA distance: +1.20%" in sent[0]
+    assert "BULL band +1.00%: 0.20 pp above" in sent[0]
+    assert "BEAR band -1.00%: 2.20 pp above" in sent[0]
+
+
 def test_load_market_excludes_same_day_bar(monkeypatch):
     cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), max_data_age_days=5)
     current_asset = AssetSettings(
