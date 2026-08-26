@@ -17,7 +17,7 @@ def test_default_repo_config_has_requested_three_assets():
     assert by_id["gold"].upper_band_pct == 2.0
     assert by_id["gold"].lower_band_pct == -2.0
     assert by_id["gold"].provider == "yahoo"
-    assert by_id["gold"].symbol == "XAUUSD=X"
+    assert by_id["gold"].symbol == "GC=F"
     assert by_id["sp500"].upper_band_pct == 1.0
     assert by_id["sp500"].lower_band_pct == -1.0
     assert by_id["world"].upper_band_pct == 1.0

@@ -4,12 +4,12 @@
       "id": "gold",
       "name": "Gold",
       "provider": "yahoo",
-      "symbol": "XAUUSD=X",
+      "symbol": "GC=F",
       "sma_window": 200,
       "upper_band_pct": 2.0,
       "lower_band_pct": -2.0,
       "quote_label": "USD",
-      "signal_description": "Unleveraged XAU/USD daily close via Yahoo Finance",
+      "signal_description": "Unleveraged continuous front-month gold futures daily close via Yahoo Finance",
       "execution_hint": "2x gold exposure, for example WisdomTree Gold 2x Daily Leveraged (LBUL)"
     },
     {

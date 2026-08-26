@@ -6,7 +6,7 @@ Default assets:
 
 | Asset | Signal series | SMA | Buy band | Sell band | Example leveraged execution |
 |---|---|---:|---:|---:|---|
-| Gold | Yahoo `XAUUSD=X` | 200 days | +2% | -2% | WisdomTree Gold 2x Daily Leveraged, LBUL |
+| Gold | Yahoo `GC=F` continuous gold futures | 200 days | +2% | -2% | WisdomTree Gold 2x Daily Leveraged, LBUL |
 | S&P 500 | Yahoo `^GSPC` | 200 days | +1% | -1% | Your preferred 2x S&P 500 product |
 | MSCI World proxy | Yahoo `SWDA.L` | 200 days | +1% | -1% | Amundi MSCI World (2x) Leveraged UCITS ETF, LVWC |
 

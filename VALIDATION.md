@@ -53,8 +53,9 @@ This is why the GitHub setup sequence begins with a manual `status` workflow. Th
 
 ## Data-series notes
 
-- Gold uses Yahoo `XAUUSD=X` as the practical XAU/USD signal. Stooq `xauusd`
-  was deliberately retired as the active source on 2026-08-26 after its daily
+- Gold uses Yahoo `GC=F`, the continuous front-month gold-futures series. It
+  is an unleveraged gold proxy rather than spot XAU/USD. Stooq `xauusd` was
+  deliberately retired as the active source on 2026-08-26 after its daily
   endpoint returned a JavaScript verification page instead of CSV; it remains
   supported by the adapter for an explicitly configured future use.
 - S&P 500 uses Yahoo `^GSPC` as the unleveraged price-index signal.

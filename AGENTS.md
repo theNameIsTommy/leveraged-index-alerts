@@ -21,7 +21,8 @@ Do not change these defaults unless the user explicitly asks:
 
 ## Current signal mapping
 
-- `gold`: Yahoo `XAUUSD=X`, practical XAU/USD signal. Stooq began returning a
+- `gold`: Yahoo `GC=F`, continuous front-month gold futures. This is a
+  documented unleveraged gold proxy, not spot XAU/USD. Stooq began returning a
   JavaScript verification page rather than daily CSV on 2026-08-26, so it is
   deliberately not the active Gold source.
 - `sp500`: Yahoo `^GSPC`, S&P 500 price index.
