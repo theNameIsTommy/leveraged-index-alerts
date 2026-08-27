@@ -1,1 +1,23 @@
-{}
+{
+  "assets": {
+    "gold": {
+      "bootstrapped": true,
+      "last_alert_event_date": "2026-08-21",
+      "last_alert_fingerprint": "gold:GC=F:2026-08-21:BUY:w200:u2:l-2",
+      "strategy_signature": "yahoo:GC=F:w200:u2:l-2"
+    },
+    "sp500": {
+      "bootstrapped": true,
+      "last_alert_event_date": "2026-04-08",
+      "last_alert_fingerprint": "sp500:^GSPC:2026-04-08:BUY:w200:u1:l-1",
+      "strategy_signature": "yahoo:^GSPC:w200:u1:l-1"
+    },
+    "world": {
+      "bootstrapped": true,
+      "last_alert_event_date": "2026-04-01",
+      "last_alert_fingerprint": "world:SWDA.L:2026-04-01:BUY:w200:u1:l-1",
+      "strategy_signature": "yahoo:SWDA.L:w200:u1:l-1"
+    }
+  },
+  "heartbeat_date": "2026-08-27"
+}
