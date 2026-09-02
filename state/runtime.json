@@ -1,9 +1,9 @@
 {
   "assets": {
     "gold": {
-      "bootstrapped": true,
-      "last_alert_event_date": "2026-08-21",
-      "last_alert_fingerprint": "gold:GC=F:2026-08-21:BUY:w200:u2:l-2",
+      "bootstrapped": false,
+      "last_alert_event_date": "2026-09-01",
+      "last_alert_fingerprint": "gold:GC=F:2026-09-01:SELL:w200:u2:l-2",
       "strategy_signature": "yahoo:GC=F:w200:u2:l-2"
     },
     "sp500": {
