@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from .config import AssetSettings, Settings
@@ -23,8 +23,22 @@ def _strategy_signature(asset: AssetSettings) -> str:
     )
 
 
+# Dates the provider listed without a close, newer than the latest usable bar.
+# Filled by _load_market so the messages can say the signal is a day behind.
+_DATA_GAPS: dict[str, list[date]] = {}
+
+
+def _gap_line(asset: AssetSettings) -> str:
+    gaps = _DATA_GAPS.get(asset.id)
+    if not gaps:
+        return ""
+    listed = ", ".join(day.isoformat() for day in gaps)
+    return f"\nData gap: provider has no close for {listed}; signal uses the last available close."
+
+
 def _load_market(settings: Settings, asset: AssetSettings) -> list[Snapshot]:
-    bars = fetch_daily(asset.provider, asset.symbol)
+    missing: list[date] = []
+    bars = fetch_daily(asset.provider, asset.symbol, missing=missing)
     today = _today(settings.timezone)
     future_dates = [bar.date for bar in bars if bar.date > today]
     if future_dates:
@@ -40,6 +54,7 @@ def _load_market(settings: Settings, asset: AssetSettings) -> list[Snapshot]:
     )
     latest = snapshots[-1]
     validate_freshness(latest.date, today, settings.max_data_age_days)
+    _DATA_GAPS[asset.id] = sorted(day for day in set(missing) if latest.date < day < today)
     return snapshots
 
 
@@ -63,6 +78,7 @@ def _status_text(asset: AssetSettings, snapshot: Snapshot) -> str:
         f"Sell boundary: {asset.lower_band_pct:+.2f}%\n"
         f"Regime: {snapshot.regime.value}\n"
         f"Position interpretation: {_position_text(asset, snapshot)}"
+        f"{_gap_line(asset)}"
     )
 
 
@@ -86,7 +102,7 @@ def _alert_text(asset: AssetSettings, event_snapshot: Snapshot, current: Snapsho
         f"New regime: {event_snapshot.regime.value}\n\n"
         f"Latest available data: {current.date.isoformat()}, distance {current.distance_pct:+.2f}%\n"
         f"Signal source: {asset.provider}/{asset.symbol} | {asset.signal_description}\n"
-        f"Execution reference: {asset.execution_hint}\n\n"
+        f"Execution reference: {asset.execution_hint}{_gap_line(asset)}\n\n"
         "Rules alert only. Verify the market and your execution instrument before trading."
     )
 
@@ -103,6 +119,7 @@ def _summary_text(asset: AssetSettings, snapshot: Snapshot) -> str:
         f"{'above' if buy_gap >= 0 else 'below'}\n"
         f"BEAR band {asset.lower_band_pct:+.2f}%: {abs(sell_gap):.2f} pp "
         f"{'above' if sell_gap >= 0 else 'below'}"
+        f"{_gap_line(asset)}"
     )
 
 
@@ -124,7 +141,7 @@ def command_status(settings: Settings) -> int:
     return 1 if errors else 0
 
 
-def command_summary_telegram(settings: Settings) -> int:
+def command_summary_telegram(settings: Settings, *, weekly: bool = False) -> int:
     summaries: list[str] = []
     errors: list[str] = []
     for asset in settings.assets:
@@ -135,7 +152,12 @@ def command_summary_telegram(settings: Settings) -> int:
     if errors:
         print("Summary not sent; market data failed:\n" + "\n".join(errors))
         return 1
-    send_message("LATEST COMPLETED DAILY PRICES\n\n" + "\n\n".join(summaries))
+    header = (
+        "WEEKLY STATUS: alert system is running. No action needed unless a BUY/SELL alert arrives."
+        if weekly
+        else "LATEST COMPLETED DAILY PRICES"
+    )
+    send_message(header + "\n\n" + "\n\n".join(summaries))
     print("Telegram market summary sent.")
     return 0
 
@@ -252,7 +274,8 @@ def build_parser() -> argparse.ArgumentParser:
     run = sub.add_parser("run", help="Evaluate all configured assets and optionally send new transition alerts")
     run.add_argument("--notify", action="store_true", help="Actually send Telegram and update runtime state")
     sub.add_parser("test-telegram", help="Send a Telegram test message with the configured assets")
-    sub.add_parser("summary-telegram", help="Send latest completed daily prices and band distances")
+    summary = sub.add_parser("summary-telegram", help="Send latest completed daily prices and band distances")
+    summary.add_argument("--weekly", action="store_true", help="Use the weekly 'system is running' header")
     sub.add_parser("chat-id", help="Show Telegram chat IDs from recent bot updates")
     return parser
 
@@ -269,7 +292,7 @@ def main() -> int:
     if args.command == "test-telegram":
         return command_test_telegram(settings)
     if args.command == "summary-telegram":
-        return command_summary_telegram(settings)
+        return command_summary_telegram(settings, weekly=args.weekly)
     if args.command == "chat-id":
         return command_chat_id()
     parser.error(f"Unknown command: {args.command}")

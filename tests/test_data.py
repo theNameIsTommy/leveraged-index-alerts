@@ -94,3 +94,11 @@ def test_parse_yahoo_keeps_regular_last_bar():
     bars = parse_yahoo_chart(payload)
     assert bars[-1].date.isoformat() == "2026-10-05"
     assert bars[-1].close == 7773.9
+
+
+def test_parse_yahoo_reports_missing_closes():
+    payload = _yahoo_payload([1790740800, 1790913600, 1791172800], [4202.3, 4162.3, None])
+    missing = []
+    bars = parse_yahoo_chart(payload, missing=missing)
+    assert bars[-1].date.isoformat() == "2026-10-02"
+    assert [day.isoformat() for day in missing] == ["2026-10-05"]

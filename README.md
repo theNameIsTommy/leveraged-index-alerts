@@ -359,6 +359,10 @@ If Yahoo fails for S&P 500 or World, the affected asset fails for that run. The 
 
 When a scheduled or manual `live` run fails, the workflow also sends a short `ALERT SYSTEM FAILURE` Telegram message with a link to the run log, so a broken asset is not silent. A transition missed during an outage is sent on the next good run and marked `LATE ALERT`.
 
+The Saturday scheduled run also sends a `WEEKLY STATUS` summary, so weeks without BUY/SELL alerts still show the system is alive. If Yahoo lists a recent trading day without a close, the messages include a `Data gap` line and the signal uses the last available close.
+
+Gold uses unadjusted continuous futures (`GC=F`). Measured against GLD (physical gold, no rolls) from 2005 to 2026 with the same ±2% bands, the regime matched on 99.7% of days, so contract rolls do not materially move the alerts. Backtests that compound returns should still use a roll-adjusted or physical series.
+
 That behavior is intentional. A silent data-source substitution can change an SMA signal.
 
 Yahoo's chart endpoint is a practical free source used by this project, but it is not treated as a contractual market-data API. The code validates parsing, minimum history, positivity, duplicate dates and freshness before using the data.

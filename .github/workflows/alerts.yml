@@ -3,7 +3,9 @@ name: Leveraged Index Alerts
 on:
   schedule:
     # Runs after the prior US trading day and London session have finished.
-    # Tuesday through Saturday, 01:17 Amsterdam time.
+    # Tuesday through Saturday, 01:17 Amsterdam time. GitHub usually starts
+    # scheduled runs 1-4 hours late; that is harmless for daily-close signals.
+    # The Saturday run also sends a weekly status summary to Telegram.
     - cron: "17 1 * * 2-6"
       timezone: "Europe/Amsterdam"
   workflow_dispatch:
@@ -38,6 +40,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # Check out the branch tip, not the triggering commit, so a queued run
+          # sees state committed by the run before it and cannot resend an alert.
+          ref: ${{ github.ref }}
           fetch-depth: 0
 
       - uses: actions/setup-python@v7
@@ -54,6 +59,18 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: leveraged-alerts run --notify
+
+      - name: Weekly status summary
+        if: github.event_name == 'schedule'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ "$(TZ=Europe/Amsterdam date +%u)" = "6" ]; then
+            leveraged-alerts summary-telegram --weekly
+          else
+            echo "Weekly summary is sent on Saturdays only."
+          fi
 
       - name: Manual status
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'status'
@@ -91,6 +108,7 @@ jobs:
           git config user.email "leveraged-index-alerts[bot]@users.noreply.github.com"
           git add state/runtime.json
           git commit -m "chore: update alert state [skip ci]"
+          git pull --rebase
           git push
 
       - name: Telegram failure notice

@@ -163,7 +163,7 @@ def test_load_market_excludes_same_day_bar(monkeypatch):
         PriceBar(date(2026, 8, 19), 100.0),
         PriceBar(date(2026, 8, 20), 200.0),
     ]
-    monkeypatch.setattr(cli, "fetch_daily", lambda _provider, _symbol: bars)
+    monkeypatch.setattr(cli, "fetch_daily", lambda _provider, _symbol, **_kw: bars)
     monkeypatch.setattr(cli, "_today", lambda _timezone: date(2026, 8, 20))
 
     snapshots = cli._load_market(cfg, current_asset)
@@ -193,3 +193,32 @@ def test_late_transition_alert_is_flagged(monkeypatch, tmp_path):
     assert len(sent) == 1
     assert "LATE ALERT" in sent[0]
     assert load_state(cfg.state_file)["assets"]["sp500"]["last_alert_event"] == "BUY"
+
+
+def test_weekly_summary_uses_running_header(monkeypatch, tmp_path):
+    cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), state_file=tmp_path / "state.json")
+    sent = []
+    monkeypatch.setattr(cli, "_load_market", lambda _settings, _asset: [buy_snapshot(distance=1.2)])
+    monkeypatch.setattr(cli, "send_message", lambda text: sent.append(text))
+
+    assert cli.command_summary_telegram(cfg, weekly=True) == 0
+    assert sent[0].startswith("WEEKLY STATUS: alert system is running.")
+
+
+def test_missing_latest_close_is_reported(monkeypatch):
+    cfg = Settings(assets=(asset("world", 1.0, -1.0),), max_data_age_days=5)
+    current_asset = AssetSettings(**{**cfg.assets[0].__dict__, "sma_window": 2})
+    bars = [PriceBar(date(2026, 10, 1), 100.0), PriceBar(date(2026, 10, 2), 101.0)]
+
+    def fake_fetch(_provider, _symbol, *, missing):
+        missing.extend([date(2026, 3, 6), date(2026, 10, 5)])
+        return bars
+
+    monkeypatch.setattr(cli, "fetch_daily", fake_fetch)
+    monkeypatch.setattr(cli, "_today", lambda _timezone: date(2026, 10, 6))
+
+    snapshots = cli._load_market(cfg, current_asset)
+
+    text = cli._summary_text(current_asset, snapshots[-1])
+    assert "Data gap: provider has no close for 2026-10-05" in text
+    assert "2026-03-06" not in text

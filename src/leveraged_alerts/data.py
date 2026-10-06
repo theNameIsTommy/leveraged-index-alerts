@@ -100,7 +100,8 @@ def _drop_in_progress_bar(stamped: list[tuple[datetime, float]]) -> list[tuple[d
     return stamped
 
 
-def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
+def parse_yahoo_chart(payload: dict, *, missing: list[date] | None = None) -> list[PriceBar]:
+    """Parse a Yahoo daily chart. Dates Yahoo lists with no close go into ``missing``."""
     try:
         result = payload["chart"]["result"][0]
         timestamps = result["timestamp"]
@@ -120,12 +121,17 @@ def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
 
     stamped: list[tuple[datetime, float]] = []
     for timestamp, raw_close in zip(timestamps, closes):
+        try:
+            moment = datetime.fromtimestamp(int(timestamp), tz=timezone)
+        except (TypeError, ValueError, OSError):
+            continue
         if raw_close is None:
+            if missing is not None:
+                missing.append(moment.date())
             continue
         try:
             close = float(raw_close)
-            moment = datetime.fromtimestamp(int(timestamp), tz=timezone)
-        except (TypeError, ValueError, OSError):
+        except (TypeError, ValueError):
             continue
         if isfinite(close) and close > 0:
             stamped.append((moment, close))
@@ -139,7 +145,9 @@ def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
     return _sort_unique_bars(bars, "Yahoo")
 
 
-def fetch_yahoo_daily(symbol: str, *, timeout: int = 30) -> list[PriceBar]:
+def fetch_yahoo_daily(
+    symbol: str, *, timeout: int = 30, missing: list[date] | None = None
+) -> list[PriceBar]:
     encoded = quote(symbol, safe="")
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded}"
     try:
@@ -157,13 +165,15 @@ def fetch_yahoo_daily(symbol: str, *, timeout: int = 30) -> list[PriceBar]:
         payload = response.json()
     except (requests.RequestException, ValueError) as exc:
         raise MarketDataError(f"Could not download {symbol} daily data from Yahoo: {exc}") from exc
-    return parse_yahoo_chart(payload)
+    return parse_yahoo_chart(payload, missing=missing)
 
 
-def fetch_daily(provider: str, symbol: str, *, timeout: int = 30) -> list[PriceBar]:
+def fetch_daily(
+    provider: str, symbol: str, *, timeout: int = 30, missing: list[date] | None = None
+) -> list[PriceBar]:
     provider = provider.lower().strip()
     if provider == "stooq":
         return fetch_stooq_daily(symbol, timeout=timeout)
     if provider == "yahoo":
-        return fetch_yahoo_daily(symbol, timeout=timeout)
+        return fetch_yahoo_daily(symbol, timeout=timeout, missing=missing)
     raise MarketDataError(f"Unsupported data provider: {provider}")
