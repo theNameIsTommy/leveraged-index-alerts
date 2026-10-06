@@ -54,7 +54,9 @@ def _load_market(settings: Settings, asset: AssetSettings) -> list[Snapshot]:
     )
     latest = snapshots[-1]
     validate_freshness(latest.date, today, settings.max_data_age_days)
-    _DATA_GAPS[asset.id] = sorted(day for day in set(missing) if latest.date < day < today)
+    _DATA_GAPS[asset.id] = sorted(
+        day for day in set(missing) if latest.date < day < today and day.weekday() < 5
+    )
     return snapshots
 
 

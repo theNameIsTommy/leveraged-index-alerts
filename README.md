@@ -75,6 +75,10 @@ For the example leveraged execution product, LVWC tracks a leveraged MSCI World 
 
 If a better free exact-index feed becomes available, replace only the World `provider` and `symbol` in `config/assets.json`, then validate signal dates against the backtest before relying on it.
 
+## Band research
+
+`research/backtest.py` compares fixed and ATR-style bands with costs, financing and daily reset. Findings: `research/FINDINGS.md`; full tables: `research/RESULTS.md`.
+
 ## What happens each day
 
 ```text

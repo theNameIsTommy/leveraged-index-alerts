@@ -211,7 +211,7 @@ def test_missing_latest_close_is_reported(monkeypatch):
     bars = [PriceBar(date(2026, 10, 1), 100.0), PriceBar(date(2026, 10, 2), 101.0)]
 
     def fake_fetch(_provider, _symbol, *, missing):
-        missing.extend([date(2026, 3, 6), date(2026, 10, 5)])
+        missing.extend([date(2026, 3, 6), date(2026, 10, 4), date(2026, 10, 5)])
         return bars
 
     monkeypatch.setattr(cli, "fetch_daily", fake_fetch)
@@ -222,3 +222,4 @@ def test_missing_latest_close_is_reported(monkeypatch):
     text = cli._summary_text(current_asset, snapshots[-1])
     assert "Data gap: provider has no close for 2026-10-05" in text
     assert "2026-03-06" not in text
+    assert "2026-10-04" not in text  # Sunday rows are not trading days
