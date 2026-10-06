@@ -170,3 +170,26 @@ def test_load_market_excludes_same_day_bar(monkeypatch):
 
     assert snapshots[-1].date == date(2026, 8, 19)
     assert snapshots[-1].regime == Regime.NEUTRAL
+
+
+def test_late_transition_alert_is_flagged(monkeypatch, tmp_path):
+    cfg = Settings(assets=(asset("sp500", 1.0, -1.0),), state_file=tmp_path / "state.json")
+    save_state(cfg.state_file, {
+        "assets": {
+            "sp500": {
+                "strategy_signature": "yahoo:sp500-symbol:w200:u1:l-1",
+                "last_alert_fingerprint": "sp500:sp500-symbol:2026-08-01:SELL:w200:u1:l-1",
+                "last_alert_event_date": "2026-08-01",
+            }
+        }
+    })
+    sent = []
+    later = Snapshot(date=date(2026, 8, 17), close=101.5, sma=100.0, distance_pct=1.5, regime=Regime.BULL)
+    monkeypatch.setattr(cli, "_load_market", lambda _settings, _asset: [buy_snapshot(), later])
+    monkeypatch.setattr(cli, "send_message", lambda text: sent.append(text))
+    monkeypatch.setattr(cli, "_today", lambda _timezone: date(2026, 8, 18))
+
+    assert cli.command_run(cfg, notify=True) == 0
+    assert len(sent) == 1
+    assert "LATE ALERT" in sent[0]
+    assert load_state(cfg.state_file)["assets"]["sp500"]["last_alert_event"] == "BUY"

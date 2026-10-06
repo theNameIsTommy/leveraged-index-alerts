@@ -69,6 +69,8 @@ The ideal signal would be the exact MSCI World index series used by the leverage
 
 The default therefore uses `SWDA.L`, the London listing of the iShares Core MSCI World UCITS ETF, as a practical unleveraged proxy. BlackRock states that SWDA benchmarks the MSCI World Index (Net). The signal source is deliberately documented so it is not confused with the exact MSCI index.
 
+Note that the `SWDA.L` line is quoted in GBp (British pence), so its SMA200 distance includes GBP/USD moves. The USD line (`IWDA.L`) and the EUR line (`IWDA.AS`) give different transition dates for the same ±1% bands. Choosing the line is a strategy decision, not a data fix.
+
 For the example leveraged execution product, LVWC tracks a leveraged MSCI World benchmark. The alert still uses the unleveraged World proxy, not LVWC itself.
 
 If a better free exact-index feed becomes available, replace only the World `provider` and `symbol` in `config/assets.json`, then validate signal dates against the backtest before relying on it.
@@ -355,9 +357,13 @@ If Yahoo fails for gold, gold fails for that run.
 
 If Yahoo fails for S&P 500 or World, the affected asset fails for that run. The other assets are still evaluated, and the overall command exits non-zero so GitHub visibly marks the run as problematic.
 
+When a scheduled or manual `live` run fails, the workflow also sends a short `ALERT SYSTEM FAILURE` Telegram message with a link to the run log, so a broken asset is not silent. A transition missed during an outage is sent on the next good run and marked `LATE ALERT`.
+
 That behavior is intentional. A silent data-source substitution can change an SMA signal.
 
 Yahoo's chart endpoint is a practical free source used by this project, but it is not treated as a contractual market-data API. The code validates parsing, minimum history, positivity, duplicate dates and freshness before using the data.
+
+Yahoo appends a live, still-trading bar while a session is open. For `GC=F` the overnight session opens at 18:00 New York time, so during the nightly run that live bar shares a date with the last completed bar. The parser drops a final bar whose time of day differs from the series' usual daily stamp.
 
 ## Why the exact signal series matters
 

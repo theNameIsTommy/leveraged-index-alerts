@@ -18,6 +18,7 @@ Do not change these defaults unless the user explicitly asks:
 - A newly added asset or changed strategy signature must bootstrap without sending a historical alert.
 - Never silently substitute a different market-data series.
 - A failure for one asset should not prevent evaluating the others, but the process should exit non-zero if any asset fails.
+- Never alert the same direction (BUY/SELL) twice in a row for one asset; regimes alternate.
 
 ## Current signal mapping
 
@@ -26,7 +27,7 @@ Do not change these defaults unless the user explicitly asks:
   JavaScript verification page rather than daily CSV on 2026-08-26, so it is
   deliberately not the active Gold source.
 - `sp500`: Yahoo `^GSPC`, S&P 500 price index.
-- `world`: Yahoo `SWDA.L`, iShares Core MSCI World UCITS ETF as a practical unleveraged World proxy.
+- `world`: Yahoo `SWDA.L`, iShares Core MSCI World UCITS ETF as a practical unleveraged World proxy. The LSE line is quoted in GBp.
 
 The World proxy is not claimed to be the exact raw MSCI World index feed. Preserve that documentation unless the provider is deliberately changed and validated.
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections import Counter
 from datetime import date, datetime
 from math import isfinite
 from urllib.parse import quote
@@ -83,6 +84,22 @@ def fetch_stooq_daily(symbol: str, *, timeout: int = 30) -> list[PriceBar]:
     return parse_stooq_csv(response.text)
 
 
+def _drop_in_progress_bar(stamped: list[tuple[datetime, float]]) -> list[tuple[datetime, float]]:
+    """Drop Yahoo's live bar when its timestamp is off the series' usual daily time.
+
+    Completed Yahoo daily bars share one local time of day (00:00 for GC=F, 09:30 for
+    ^GSPC). While a session is trading, Yahoo appends a bar stamped with the current
+    time instead. For overnight futures such as GC=F that live bar falls on the same
+    local date as the last completed bar, which produced duplicate dates.
+    """
+    if len(stamped) < 3:
+        return stamped
+    usual_time, _count = Counter(moment.time() for moment, _close in stamped[:-1]).most_common(1)[0]
+    if stamped[-1][0].time() != usual_time:
+        return stamped[:-1]
+    return stamped
+
+
 def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
     try:
         result = payload["chart"]["result"][0]
@@ -101,17 +118,21 @@ def parse_yahoo_chart(payload: dict) -> list[PriceBar]:
     except Exception:
         timezone = ZoneInfo("UTC")
 
-    bars: list[PriceBar] = []
+    stamped: list[tuple[datetime, float]] = []
     for timestamp, raw_close in zip(timestamps, closes):
         if raw_close is None:
             continue
         try:
             close = float(raw_close)
-            bar_date = datetime.fromtimestamp(int(timestamp), tz=timezone).date()
+            moment = datetime.fromtimestamp(int(timestamp), tz=timezone)
         except (TypeError, ValueError, OSError):
             continue
         if isfinite(close) and close > 0:
-            bars.append(PriceBar(date=bar_date, close=close))
+            stamped.append((moment, close))
+
+    stamped.sort(key=lambda item: item[0])
+    stamped = _drop_in_progress_bar(stamped)
+    bars = [PriceBar(date=moment.date(), close=close) for moment, close in stamped]
 
     if not bars:
         raise MarketDataError("No valid daily observations were found in the Yahoo response")

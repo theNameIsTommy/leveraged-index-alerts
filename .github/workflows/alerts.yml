@@ -92,3 +92,16 @@ jobs:
           git add state/runtime.json
           git commit -m "chore: update alert state [skip ci]"
           git push
+
+      - name: Telegram failure notice
+        if: ${{ failure() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'live')) }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS --fail-with-body -o /dev/null -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "disable_web_page_preview=true" \
+            --data-urlencode "text=ALERT SYSTEM FAILURE: the nightly SMA run failed, so at least one asset was NOT evaluated. A BUY/SELL may be missed until it is fixed. Log: ${RUN_URL}"

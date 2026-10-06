@@ -68,8 +68,15 @@ def _status_text(asset: AssetSettings, snapshot: Snapshot) -> str:
 
 def _alert_text(asset: AssetSettings, event_snapshot: Snapshot, current: Snapshot) -> str:
     action = "BUY / ENTER LEVERAGED REGIME" if event_snapshot.event == EventType.BUY else "SELL / EXIT LEVERAGED REGIME"
+    late = ""
+    if event_snapshot.date < current.date:
+        late = (
+            f"LATE ALERT: the transition closed on {event_snapshot.date.isoformat()}, "
+            f"before the latest data ({current.date.isoformat()}). A previous run likely failed.\n\n"
+        )
     return (
         f"{asset.name.upper()} SMA ALERT: {action}\n\n"
+        f"{late}"
         f"Transition date: {event_snapshot.date.isoformat()}\n"
         f"Close: {event_snapshot.close:,.2f} {asset.quote_label}\n"
         f"SMA{asset.sma_window}: {event_snapshot.sma:,.2f} {asset.quote_label}\n"
@@ -176,15 +183,19 @@ def command_run(settings: Settings, *, notify: bool) -> int:
                 per_asset["strategy_signature"] = signature
                 per_asset["last_alert_fingerprint"] = fingerprint
                 per_asset["last_alert_event_date"] = transition.date.isoformat() if transition else None
+                per_asset["last_alert_event"] = transition.event.value if transition else None
                 per_asset["bootstrapped"] = True
                 changed = True
                 print(f"{asset.name}: bootstrapped without sending a historical alert.\n")
             elif transition is None:
                 print("No historical band transition is available yet.\n")
-            elif should_notify(fingerprint, per_asset, event_date=transition.date):
+            elif should_notify(
+                fingerprint, per_asset, event_date=transition.date, event=transition.event.value
+            ):
                 send_message(_alert_text(asset, transition, current))
                 per_asset["last_alert_fingerprint"] = fingerprint
                 per_asset["last_alert_event_date"] = transition.date.isoformat()
+                per_asset["last_alert_event"] = transition.event.value
                 per_asset["bootstrapped"] = False
                 changed = True
                 print(f"{asset.name}: Telegram {transition.event.value} alert sent for {transition.date}.\n")

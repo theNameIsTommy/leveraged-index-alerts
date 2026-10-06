@@ -32,8 +32,8 @@
       "sma_window": 200,
       "upper_band_pct": 1.0,
       "lower_band_pct": -1.0,
-      "quote_label": "USD",
-      "signal_description": "iShares Core MSCI World UCITS ETF (SWDA) as a practical unleveraged MSCI World proxy",
+      "quote_label": "GBp",
+      "signal_description": "iShares Core MSCI World UCITS ETF (SWDA, LSE line quoted in GBp) as a practical unleveraged MSCI World proxy",
       "execution_hint": "2x MSCI World exposure, for example Amundi MSCI World (2x) Leveraged UCITS ETF Acc (LVWC)"
     }
   ]

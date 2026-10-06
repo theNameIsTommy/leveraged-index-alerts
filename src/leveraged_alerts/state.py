@@ -36,13 +36,30 @@ def asset_state(state: dict[str, Any], asset_id: str) -> dict[str, Any]:
     return value
 
 
+def last_alert_event(per_asset_state: dict[str, Any]) -> str | None:
+    """Return BUY/SELL of the last alert, falling back to the stored fingerprint."""
+    stored = per_asset_state.get("last_alert_event")
+    if stored in {"BUY", "SELL"}:
+        return stored
+    fingerprint = str(per_asset_state.get("last_alert_fingerprint") or "")
+    for event in ("BUY", "SELL"):
+        if f":{event}:" in fingerprint:
+            return event
+    return None
+
+
 def should_notify(
     fingerprint: str | None,
     per_asset_state: dict[str, Any],
     *,
     event_date: date | None = None,
+    event: str | None = None,
 ) -> bool:
     if not fingerprint or fingerprint == per_asset_state.get("last_alert_fingerprint"):
+        return False
+    # Regimes alternate, so a genuine new transition is always the opposite of the last
+    # alert. A same-direction "new" transition means revised history moved the date.
+    if event is not None and event == last_alert_event(per_asset_state):
         return False
     raw_previous_date = per_asset_state.get("last_alert_event_date")
     if event_date is None or not raw_previous_date:
