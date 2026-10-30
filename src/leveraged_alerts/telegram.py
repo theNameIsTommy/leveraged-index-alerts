@@ -33,20 +33,21 @@ def send_message(text: str, *, timeout: int = 30) -> None:
         )
         response.raise_for_status()
         payload = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise TelegramError(f"Telegram sendMessage failed: {exc}") from exc
+    except (requests.RequestException, ValueError):
+        raise TelegramError("Telegram sendMessage failed; check connectivity and bot credentials") from None
     if not payload.get("ok"):
-        raise TelegramError(f"Telegram rejected the message: {payload}")
+        raise TelegramError("Telegram rejected the message")
 
 
-def get_updates(*, timeout: int = 30) -> list[dict]:
+def get_updates(*, timeout: int = 30, offset: int | None = None) -> list[dict]:
     url = f"https://api.telegram.org/bot{_token()}/getUpdates"
+    params = {"offset": offset} if offset is not None else {}
     try:
-        response = requests.get(url, timeout=timeout)
+        response = requests.get(url, params=params, timeout=timeout)
         response.raise_for_status()
         payload = response.json()
-    except (requests.RequestException, ValueError) as exc:
-        raise TelegramError(f"Telegram getUpdates failed: {exc}") from exc
+    except (requests.RequestException, ValueError):
+        raise TelegramError("Telegram getUpdates failed; check connectivity, credentials and webhook settings") from None
     if not payload.get("ok"):
-        raise TelegramError(f"Telegram rejected getUpdates: {payload}")
+        raise TelegramError("Telegram rejected getUpdates")
     return payload.get("result") or []
