@@ -28,8 +28,11 @@ def bot(monkeypatch, tmp_path):
 
 variants = [
     "".join(letters)
-    for word in ("run", "rerun")
-    for letters in product(*[(letter.lower(), letter.upper()) for letter in word])
+    for word in ("run", "rerun", "go", "go go")
+    for letters in product(*[
+        (letter.lower(), letter.upper()) if letter.isalpha() else (letter,)
+        for letter in word
+    ])
 ] + ["?", "  RuN\n", "/RUN", "/ReRuN"]
 
 
@@ -38,28 +41,31 @@ def test_all_case_combinations_trigger_live_run_and_summary(monkeypatch, bot, te
     cfg, calls = bot
     monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, text)])
     assert cli.command_check_messages(cfg) == 0
-    assert calls == [("run", True), "summary"]
+    assert calls[0].startswith("Rerun received.")
+    assert calls[1:] == [("run", True), "summary"]
     assert load_state(cfg.state_file)["telegram_update_offset"] == 11
 
 
 @pytest.mark.parametrize("phrase", [
     "again", "retry", "repeat", "refresh", "update", "check", "recheck",
     "status", "summary", "re-run", "run again", "try again", "check again",
-    "run it", "run it again", "do it again", "one more time",
+    "run it", "run it again", "do it again", "one more time", "go go",
 ])
 @pytest.mark.parametrize("style", [str.lower, str.upper, str.title])
 def test_natural_rerun_phrases(monkeypatch, bot, phrase, style):
     cfg, calls = bot
     monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, style(phrase))])
     assert cli.command_check_messages(cfg) == 0
-    assert calls == [("run", True), "summary"]
+    assert calls[0].startswith("Rerun received.")
+    assert calls[1:] == [("run", True), "summary"]
 
 
 def test_slash_command_and_extra_whitespace(monkeypatch, bot):
     cfg, calls = bot
     monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, " /RuN   It\n AgAiN  ")])
     assert cli.command_check_messages(cfg) == 0
-    assert calls == [("run", True), "summary"]
+    assert calls[0].startswith("Rerun received.")
+    assert calls[1:] == [("run", True), "summary"]
 
 
 @pytest.mark.parametrize("update", [
@@ -73,6 +79,8 @@ def test_slash_command_and_extra_whitespace(monkeypatch, bot):
     message(10, "don't refresh"),
     message(10, "is everything working again?"),
     message(10, "check tomorrow"),
+    message(10, "do not go"),
+    message(10, "going"),
     {"update_id": 10, "edited_message": message(10, "run")["message"]},
     {"update_id": 10, "message": {"chat": {"id": 123}, "photo": []}},
 ])
@@ -95,7 +103,8 @@ def test_queued_commands_coalesce_and_do_not_repeat_after_restart(monkeypatch, b
     monkeypatch.setattr(cli, "get_updates", updates)
     assert cli.command_check_messages(cfg) == 0
     assert cli.command_check_messages(cfg) == 0
-    assert calls == [("run", True), "summary"]
+    assert calls[0].startswith("Rerun received.")
+    assert calls[1:] == [("run", True), "summary"]
     assert offsets == [0, 12]
 
 
@@ -143,6 +152,33 @@ def test_empty_poll_does_not_write_state(monkeypatch, bot):
     assert cli.command_check_messages(cfg) == 0
     assert not cfg.state_file.exists()
     assert calls == []
+
+
+def test_acknowledgment_failure_keeps_request_pending(monkeypatch, bot):
+    cfg, calls = bot
+    monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, "go")])
+
+    def fail(text):
+        raise telegram.TelegramError("delivery failed")
+
+    monkeypatch.setattr(cli, "send_message", fail)
+    with pytest.raises(telegram.TelegramError):
+        cli.command_check_messages(cfg)
+    assert calls == []
+    assert not cfg.state_file.exists()
+
+
+def test_poll_diagnostics_count_without_disclosing_messages(monkeypatch, bot, capsys):
+    cfg, calls = bot
+    monkeypatch.setattr(cli, "get_updates", lambda **kw: [
+        message(10, "go"), message(11, "private message"), message(12, "run", chat_id=999),
+    ])
+    assert cli.command_check_messages(cfg) == 0
+    output = capsys.readouterr().out
+    assert "3 update(s), 2 message(s) from the configured chat, 1 rerun request(s)" in output
+    assert "private message" not in output
+    assert "123" not in output
+    assert "999" not in output
 
 
 def test_get_updates_passes_cursor_without_logging_credentials(monkeypatch):

@@ -278,27 +278,36 @@ def command_check_messages(settings: Settings) -> int:
         print("No new Telegram messages.")
         return 0
 
-    requested = False
+    request_count = 0
+    chat_message_count = 0
     for update in updates:
         if update["update_id"] < offset:
             continue
         message = update.get("message") or {}
+        if str(message.get("chat", {}).get("id")) == chat_id:
+            chat_message_count += 1
         text = " ".join((message.get("text") or "").casefold().split()).removeprefix("/")
         if (
             str(message.get("chat", {}).get("id")) == chat_id
             and not message.get("from", {}).get("is_bot", False)
             and text in {
-                "run", "rerun", "?", "again", "retry", "repeat", "refresh",
+                "run", "rerun", "?", "go", "go go", "again", "retry", "repeat", "refresh",
                 "update", "check", "recheck", "status", "summary", "re-run",
                 "run again", "try again", "check again", "run it", "run it again",
                 "do it again", "one more time",
             }
         ):
-            requested = True
+            request_count += 1
+
+    print(
+        f"Telegram poll: {len(updates)} update(s), {chat_message_count} message(s) "
+        f"from the configured chat, {request_count} rerun request(s)."
+    )
 
     result = 0
-    if requested:
+    if request_count:
         # Coalesce queued requests into one evaluation and one fresh summary.
+        send_message("Rerun received. Checking the latest completed daily prices for all three assets.")
         result = command_run(settings, notify=True)
         summary_result = command_summary_telegram(settings)
         if result or summary_result:
