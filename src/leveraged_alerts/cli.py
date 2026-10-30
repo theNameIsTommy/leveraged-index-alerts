@@ -9,7 +9,7 @@ from .data import fetch_daily
 from .models import EventType, Snapshot
 from .state import asset_state, heartbeat_due, load_state, save_state, should_notify
 from .strategy import StrategyError, build_snapshots, latest_transition, validate_freshness
-from .telegram import get_updates, send_message
+from .telegram import _chat_id, get_updates, send_message
 
 
 def _today(timezone: str):
@@ -269,6 +269,48 @@ def command_chat_id() -> int:
     return 0
 
 
+def command_check_messages(settings: Settings) -> int:
+    chat_id = _chat_id()
+    state = load_state(settings.state_file)
+    offset = state.get("telegram_update_offset", 0)
+    updates = get_updates(offset=offset)
+    if not updates:
+        print("No new Telegram messages.")
+        return 0
+
+    requested = False
+    for update in updates:
+        if update["update_id"] < offset:
+            continue
+        message = update.get("message") or {}
+        text = message.get("text") or ""
+        if (
+            str(message.get("chat", {}).get("id")) == chat_id
+            and not message.get("from", {}).get("is_bot", False)
+            and text.strip().casefold() in {"run", "rerun", "?", "/run", "/rerun"}
+        ):
+            requested = True
+
+    result = 0
+    if requested:
+        # Coalesce queued requests into one evaluation and one fresh summary.
+        result = command_run(settings, notify=True)
+        summary_result = command_summary_telegram(settings)
+        if result or summary_result:
+            send_message(
+                "RERUN INCOMPLETE: at least one asset could not be evaluated or the summary failed. "
+                "Send rerun to try again."
+            )
+            result = 1
+
+    # Reload because live evaluation may have updated per-asset alert state.
+    state = load_state(settings.state_file)
+    state["telegram_update_offset"] = max(offset, max(u["update_id"] for u in updates) + 1)
+    save_state(settings.state_file, state)
+    print("Telegram messages checked; cursor saved.")
+    return result
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Multi-asset SMA200 hysteresis alerts")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -279,6 +321,7 @@ def build_parser() -> argparse.ArgumentParser:
     summary = sub.add_parser("summary-telegram", help="Send latest completed daily prices and band distances")
     summary.add_argument("--weekly", action="store_true", help="Use the weekly 'system is running' header")
     sub.add_parser("chat-id", help="Show Telegram chat IDs from recent bot updates")
+    sub.add_parser("check-messages", help="Process run/rerun/? from the configured Telegram chat")
     return parser
 
 
@@ -297,6 +340,8 @@ def main() -> int:
         return command_summary_telegram(settings, weekly=args.weekly)
     if args.command == "chat-id":
         return command_chat_id()
+    if args.command == "check-messages":
+        return command_check_messages(settings)
     parser.error(f"Unknown command: {args.command}")
     return 2
 

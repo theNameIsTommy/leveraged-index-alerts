@@ -82,7 +82,7 @@ If a better free exact-index feed becomes available, replace only the World `pro
 ## What happens each day
 
 ```text
-Gold XAU/USD      S&P 500 ^GSPC      World SWDA.L
+Gold GC=F        S&P 500 ^GSPC      World SWDA.L
       |                 |                 |
       +-----------------+-----------------+
                         |
@@ -186,6 +186,50 @@ It now prints all configured assets, not only gold.
 To send one on-demand Telegram summary with the latest completed daily prices,
 SMA distances, and distance from each buy/sell band, run the workflow manually
 with mode `summary-telegram`. This does not change alert state or send a trade alert.
+
+## Rerun by Telegram message
+
+Once `.github/workflows/telegram.yml` is on the default branch, send `run`,
+`rerun`, or just `?` in the configured bot chat. Every capitalization works
+(`RUN`, `Run`, `rErUn`, etc.); surrounding whitespace is ignored. `/run` and
+`/rerun` also work. Other chats, bot messages, edits and unrelated text are ignored.
+
+The command workflow checks for messages every five minutes. GitHub scheduling
+can be delayed or dropped, so this is not an instant-response service. It runs
+independently of your Mac. Telegram retains pending updates for at most 24 hours.
+An active Telegram webhook must not be configured when using this polling workflow.
+
+Each check combines queued commands into one live evaluation of all three assets,
+then sends a fresh daily-price summary even if no regime changed. Existing BUY/SELL
+duplicate suppression remains active. A market-data failure sends an incomplete-run
+notice; send `rerun` to retry. Telegram delivery failures leave the command pending.
+The shared nightly lock prevents simultaneous alert-state updates.
+Both workflows queue pending runs so a message check cannot replace a queued
+nightly evaluation.
+
+The next Telegram update offset is stored alongside the alert state, without chat
+IDs or message text. Empty checks do not download market data or commit anything.
+If delivery succeeds but persisting state fails, a later check may repeat the
+summary; delivery and Git commits cannot be one atomic transaction.
+
+For a local check with credentials already configured:
+
+```bash
+leveraged-alerts check-messages
+```
+
+### Running costs
+
+The public repository uses standard GitHub-hosted Linux runners, which are free
+under [GitHub's current billing rules](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+Normal low-volume bot messages use Telegram's free allowance; see the
+[Telegram bot FAQ](https://core.telegram.org/bots/faq#how-do-i-avoid-hitting-limits).
+Yahoo's public chart endpoint requires no paid API key in this project. There is
+no AI model, rented server, or per-rerun AI charge. Expected incremental operating
+cost: **€0/month** for this setup; this is not an audit of your account invoices.
+The message schedule adds up to 288 short checks per day (8,640 in a 30-day month),
+with market-data requests only when a recognized command is pending. Switching to
+a private repository, a paid runner, or paid data/hosting would change the cost.
 
 ## 2. Set this up with Codex
 

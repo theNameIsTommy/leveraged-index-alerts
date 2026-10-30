@@ -27,6 +27,7 @@ permissions:
 concurrency:
   group: leveraged-index-alerts
   cancel-in-progress: false
+  queue: max
 
 jobs:
   alert:
