@@ -192,7 +192,7 @@ with mode `summary-telegram`. This does not change alert state or send a trade a
 Once `.github/workflows/telegram.yml` is on the default branch, send any of these
 in the configured bot chat to run the same evaluation and fresh summary:
 
-- `run`, `rerun`, `re-run`, `again`, `retry`, `repeat`, or `?`
+- `run`, `rerun`, `re-run`, `go`, `go go`, `again`, `retry`, `repeat`, or `?`
 - `refresh`, `update`, `check`, `recheck`, `status`, or `summary`
 - `run again`, `try again`, `check again`, `run it`, `run it again`,
   `do it again`, or `one more time`
@@ -202,11 +202,13 @@ ignored and an optional leading slash works with every command. The whole messag
 must match one of these words or phrases; words inside unrelated sentences do not
 trigger a rerun. Other chats, bot messages and edits are ignored.
 
-The command workflow checks for messages every five minutes. GitHub scheduling
-can be delayed or dropped, so this is not an instant-response service. It runs
+The command workflow requests a message check every five minutes. GitHub scheduling
+can be delayed or dropped; a gap of over an hour was observed on 30 October 2026.
+Five minutes is the requested interval, not a response-time guarantee. It runs
 independently of your Mac. Telegram retains pending updates for at most 24 hours.
 An active Telegram webhook must not be configured when using this polling workflow.
 
+Once a checker starts, it acknowledges a recognized request before fetching prices.
 Each check combines queued commands into one live evaluation of all three assets,
 then sends a fresh daily-price summary even if no regime changed. Existing BUY/SELL
 duplicate suppression remains active. A market-data failure sends an incomplete-run
