@@ -1,0 +1,65 @@
+name: Telegram Webhook Rerun
+
+on:
+  workflow_dispatch:
+    inputs:
+      update_id:
+        description: "Telegram update ID for duplicate suppression"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leveraged-index-alerts
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  rerun:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ASSET_CONFIG: config/assets.json
+      MAX_DATA_AGE_DAYS: ${{ vars.MAX_DATA_AGE_DAYS || '5' }}
+      TIMEZONE: Europe/Amsterdam
+      STATE_FILE: state/runtime.json
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install .
+      - name: Evaluate webhook request and send summary
+        env:
+          TELEGRAM_UPDATE_ID: ${{ inputs.update_id }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: leveraged-alerts webhook-run --update-id "$TELEGRAM_UPDATE_ID"
+      - name: Persist alert state and processed request IDs
+        if: always()
+        run: |
+          if git diff --quiet -- state/runtime.json; then
+            exit 0
+          fi
+          git config user.name "leveraged-index-alerts[bot]"
+          git config user.email "leveraged-index-alerts[bot]@users.noreply.github.com"
+          git add state/runtime.json
+          git commit -m "chore: persist Telegram webhook rerun state [skip ci]"
+          git push
+      - name: Notify failed rerun
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import os
+          from leveraged_alerts.telegram import send_message
+          send_message("RERUN FAILED: the queued calculation did not complete successfully. Log: " + os.environ["RUN_URL"])
+          PY
