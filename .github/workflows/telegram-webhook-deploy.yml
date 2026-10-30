@@ -1,0 +1,68 @@
+name: Deploy Telegram Receiver
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: telegram-receiver-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+      GITHUB_TOKEN: ${{ secrets.TELEGRAM_RECEIVER_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check required configuration
+        run: |
+          python - <<'PY'
+          import os
+          required = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "WEBHOOK_SECRET", "GITHUB_TOKEN"]
+          missing = [key for key in required if not os.environ.get(key)]
+          if missing:
+              raise SystemExit("Missing receiver configuration: " + ", ".join(missing))
+          PY
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - name: Verify receiver behavior
+        run: node --test webhook/worker.test.mjs
+      - name: Publish receiver with server-only secrets
+        id: receiver
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: webhook
+          wranglerVersion: "4.156.0"
+          command: deploy
+          secrets: |
+            TELEGRAM_BOT_TOKEN
+            TELEGRAM_CHAT_ID
+            WEBHOOK_SECRET
+            GITHUB_TOKEN
+      - name: Register healthy receiver and preserve pending commands
+        env:
+          RECEIVER_URL: ${{ steps.receiver.outputs.deployment-url }}
+        run: python -m leveraged_alerts.webhook "$RECEIVER_URL"
+      - name: Stop the former scheduled polling workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow disable telegram.yml

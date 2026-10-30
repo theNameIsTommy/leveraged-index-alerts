@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import date, datetime
+from importlib.resources import files
 from zoneinfo import ZoneInfo
 
 from .config import AssetSettings, Settings
@@ -10,6 +12,8 @@ from .models import EventType, Snapshot
 from .state import asset_state, heartbeat_due, load_state, save_state, should_notify
 from .strategy import StrategyError, build_snapshots, latest_transition, validate_freshness
 from .telegram import _chat_id, get_updates, send_message
+
+RERUN_COMMANDS = frozenset(json.loads(files("leveraged_alerts").joinpath("commands.json").read_text()))
 
 
 def _today(timezone: str):
@@ -290,12 +294,7 @@ def command_check_messages(settings: Settings) -> int:
         if (
             str(message.get("chat", {}).get("id")) == chat_id
             and not message.get("from", {}).get("is_bot", False)
-            and text in {
-                "run", "rerun", "?", "go", "go go", "again", "retry", "repeat", "refresh",
-                "update", "check", "recheck", "status", "summary", "re-run",
-                "run again", "try again", "check again", "run it", "run it again",
-                "do it again", "one more time",
-            }
+            and text in RERUN_COMMANDS
         ):
             request_count += 1
 
@@ -308,20 +307,42 @@ def command_check_messages(settings: Settings) -> int:
     if request_count:
         # Coalesce queued requests into one evaluation and one fresh summary.
         send_message("Rerun received. Checking the latest completed daily prices for all three assets.")
-        result = command_run(settings, notify=True)
-        summary_result = command_summary_telegram(settings)
-        if result or summary_result:
-            send_message(
-                "RERUN INCOMPLETE: at least one asset could not be evaluated or the summary failed. "
-                "Send rerun to try again."
-            )
-            result = 1
+        result = _run_and_summary(settings)
 
     # Reload because live evaluation may have updated per-asset alert state.
     state = load_state(settings.state_file)
     state["telegram_update_offset"] = max(offset, max(u["update_id"] for u in updates) + 1)
     save_state(settings.state_file, state)
     print("Telegram messages checked; cursor saved.")
+    return result
+
+
+def _run_and_summary(settings: Settings) -> int:
+    result = command_run(settings, notify=True)
+    summary_result = command_summary_telegram(settings)
+    if result or summary_result:
+        send_message(
+            "RERUN INCOMPLETE: at least one asset could not be evaluated or the summary failed. "
+            "Send rerun to try again."
+        )
+        return 1
+    return 0
+
+
+def command_webhook_run(settings: Settings, *, update_id: int) -> int:
+    if update_id < 0:
+        raise ValueError("Telegram update ID must be non-negative")
+    state = load_state(settings.state_file)
+    if update_id in state.get("telegram_webhook_updates", []):
+        print("Webhook request already processed; skipping duplicate delivery.")
+        return 0
+
+    result = _run_and_summary(settings)
+    state = load_state(settings.state_file)
+    # Keep recent IDs instead of assuming monotonic IDs across long idle periods.
+    state["telegram_webhook_updates"] = (state.get("telegram_webhook_updates", []) + [update_id])[-100:]
+    save_state(settings.state_file, state)
+    print("Webhook rerun completed; request ID saved.")
     return result
 
 
@@ -336,6 +357,8 @@ def build_parser() -> argparse.ArgumentParser:
     summary.add_argument("--weekly", action="store_true", help="Use the weekly 'system is running' header")
     sub.add_parser("chat-id", help="Show Telegram chat IDs from recent bot updates")
     sub.add_parser("check-messages", help="Process rerun requests from the configured Telegram chat")
+    webhook_run = sub.add_parser("webhook-run", help="Evaluate one authenticated webhook request")
+    webhook_run.add_argument("--update-id", type=int, required=True)
     return parser
 
 
@@ -356,6 +379,8 @@ def main() -> int:
         return command_chat_id()
     if args.command == "check-messages":
         return command_check_messages(settings)
+    if args.command == "webhook-run":
+        return command_webhook_run(settings, update_id=args.update_id)
     parser.error(f"Unknown command: {args.command}")
     return 2
 

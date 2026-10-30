@@ -189,8 +189,13 @@ with mode `summary-telegram`. This does not change alert state or send a trade a
 
 ## Rerun by Telegram message
 
-Once `.github/workflows/telegram.yml` is on the default branch, send any of these
-in the configured bot chat to run the same evaluation and fresh summary:
+**Delivery status, 30 October 2026:** the GitHub schedule-based receiver has not
+launched automatically. Manual dispatches have processed real commands and sent
+summaries, but do not prove unattended replies. A replacement direct receiver is
+implemented in `webhook/`; it is not active until hosting credentials are configured
+and `Deploy Telegram Receiver` completes. See [receiver setup and acceptance](webhook/README.md).
+
+The configured bot chat accepts these commands for the same evaluation and summary:
 
 - `run`, `rerun`, `re-run`, `go`, `go go`, `again`, `retry`, `repeat`, or `?`
 - `refresh`, `update`, `check`, `recheck`, `status`, or `summary`
@@ -202,11 +207,18 @@ ignored and an optional leading slash works with every command. The whole messag
 must match one of these words or phrases; words inside unrelated sentences do not
 trigger a rerun. Other chats, bot messages and edits are ignored.
 
-The command workflow requests a message check every five minutes. GitHub scheduling
-can be delayed or dropped; a gap of over an hour was observed on 30 October 2026.
-Five minutes is the requested interval, not a response-time guarantee. It runs
-independently of your Mac. Telegram retains pending updates for at most 24 hours.
-An active Telegram webhook must not be configured when using this polling workflow.
+After the direct receiver is activated, Telegram pushes messages to it immediately.
+The receiver verifies Telegram's secret header and the configured chat, then starts
+the GitHub calculation and sends a queued acknowledgment. GitHub runner startup can
+still delay the final summary. Neither step depends on the GitHub cron scheduler.
+Recent request IDs suppress duplicate summaries after webhook delivery retries.
+The nightly alert workflow continues separately with the same rules and state.
+
+The older `Telegram Rerun Commands` polling workflow is a manual recovery path until
+cutover. Its requested five-minute schedule is not a delivery guarantee; a gap of
+over an hour was observed. Deployment registers the webhook without dropping pending
+messages and disables this poller, because Telegram polling and webhooks cannot run
+together. Both approaches work independently of your Mac.
 
 Once a checker starts, it acknowledges a recognized request before fetching prices.
 Each check combines queued commands into one live evaluation of all three assets,
@@ -238,8 +250,10 @@ Yahoo's public chart endpoint requires no paid API key in this project. There is
 no AI model, rented server, or per-rerun AI charge. Expected incremental operating
 cost: **€0/month** for this setup; this is not an audit of your account invoices.
 The message schedule adds up to 288 short checks per day (8,640 in a 30-day month),
-with market-data requests only when a recognized command is pending. Switching to
-a private repository, a paid runner, or paid data/hosting would change the cost.
+with market-data requests only when a recognized command is pending. The webhook
+replacement eliminates those scheduled checks and uses Cloudflare Workers hosting;
+normal personal use is within its [Free plan request allowance](https://developers.cloudflare.com/workers/platform/limits/).
+Switching to a private repository, a paid runner, or paid data/hosting would change the cost.
 
 ## 2. Set this up with Codex
 
