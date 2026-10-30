@@ -189,10 +189,18 @@ with mode `summary-telegram`. This does not change alert state or send a trade a
 
 ## Rerun by Telegram message
 
-Once `.github/workflows/telegram.yml` is on the default branch, send `run`,
-`rerun`, or just `?` in the configured bot chat. Every capitalization works
-(`RUN`, `Run`, `rErUn`, etc.); surrounding whitespace is ignored. `/run` and
-`/rerun` also work. Other chats, bot messages, edits and unrelated text are ignored.
+Once `.github/workflows/telegram.yml` is on the default branch, send any of these
+in the configured bot chat to run the same evaluation and fresh summary:
+
+- `run`, `rerun`, `re-run`, `again`, `retry`, `repeat`, or `?`
+- `refresh`, `update`, `check`, `recheck`, `status`, or `summary`
+- `run again`, `try again`, `check again`, `run it`, `run it again`,
+  `do it again`, or `one more time`
+
+Every capitalization works (`AGAIN`, `Again`, `aGaIn`, etc.). Extra whitespace is
+ignored and an optional leading slash works with every command. The whole message
+must match one of these words or phrases; words inside unrelated sentences do not
+trigger a rerun. Other chats, bot messages and edits are ignored.
 
 The command workflow checks for messages every five minutes. GitHub scheduling
 can be delayed or dropped, so this is not an instant-response service. It runs

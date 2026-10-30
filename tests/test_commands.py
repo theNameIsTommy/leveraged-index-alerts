@@ -42,6 +42,26 @@ def test_all_case_combinations_trigger_live_run_and_summary(monkeypatch, bot, te
     assert load_state(cfg.state_file)["telegram_update_offset"] == 11
 
 
+@pytest.mark.parametrize("phrase", [
+    "again", "retry", "repeat", "refresh", "update", "check", "recheck",
+    "status", "summary", "re-run", "run again", "try again", "check again",
+    "run it", "run it again", "do it again", "one more time",
+])
+@pytest.mark.parametrize("style", [str.lower, str.upper, str.title])
+def test_natural_rerun_phrases(monkeypatch, bot, phrase, style):
+    cfg, calls = bot
+    monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, style(phrase))])
+    assert cli.command_check_messages(cfg) == 0
+    assert calls == [("run", True), "summary"]
+
+
+def test_slash_command_and_extra_whitespace(monkeypatch, bot):
+    cfg, calls = bot
+    monkeypatch.setattr(cli, "get_updates", lambda **kw: [message(10, " /RuN   It\n AgAiN  ")])
+    assert cli.command_check_messages(cfg) == 0
+    assert calls == [("run", True), "summary"]
+
+
 @pytest.mark.parametrize("update", [
     message(10, "run", chat_id=999),
     message(10, "run", is_bot=True),
@@ -49,6 +69,10 @@ def test_all_case_combinations_trigger_live_run_and_summary(monkeypatch, bot, te
     message(10, "running"),
     message(10, "??"),
     message(10, "hello"),
+    message(10, "do not run again"),
+    message(10, "don't refresh"),
+    message(10, "is everything working again?"),
+    message(10, "check tomorrow"),
     {"update_id": 10, "edited_message": message(10, "run")["message"]},
     {"update_id": 10, "message": {"chat": {"id": 123}, "photo": []}},
 ])

@@ -283,11 +283,16 @@ def command_check_messages(settings: Settings) -> int:
         if update["update_id"] < offset:
             continue
         message = update.get("message") or {}
-        text = message.get("text") or ""
+        text = " ".join((message.get("text") or "").casefold().split()).removeprefix("/")
         if (
             str(message.get("chat", {}).get("id")) == chat_id
             and not message.get("from", {}).get("is_bot", False)
-            and text.strip().casefold() in {"run", "rerun", "?", "/run", "/rerun"}
+            and text in {
+                "run", "rerun", "?", "again", "retry", "repeat", "refresh",
+                "update", "check", "recheck", "status", "summary", "re-run",
+                "run again", "try again", "check again", "run it", "run it again",
+                "do it again", "one more time",
+            }
         ):
             requested = True
 
@@ -321,7 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     summary = sub.add_parser("summary-telegram", help="Send latest completed daily prices and band distances")
     summary.add_argument("--weekly", action="store_true", help="Use the weekly 'system is running' header")
     sub.add_parser("chat-id", help="Show Telegram chat IDs from recent bot updates")
-    sub.add_parser("check-messages", help="Process run/rerun/? from the configured Telegram chat")
+    sub.add_parser("check-messages", help="Process rerun requests from the configured Telegram chat")
     return parser
 
 
